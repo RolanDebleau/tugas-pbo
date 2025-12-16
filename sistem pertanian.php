@@ -502,7 +502,7 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #00ffccff 0%, #000093ff 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -600,12 +600,12 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
         }
         
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2c835aff 0%, #438a29ff 100%);
             color: white;
             padding: 20px;
             border-radius: 15px;
             text-align: center;
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 15px rgba(2, 44, 234, 0.4);
         }
         
         .stat-label {
