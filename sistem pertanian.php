@@ -1,8 +1,7 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', 0); //matikan error display di production
+ini_set('display_errors', 0);
 
-//penerapan encapsulation
 abstract class Tanaman {
     protected $nama;
     protected $waktuTanam;
@@ -40,46 +39,54 @@ abstract class Tanaman {
             $this->multiplier = 1;
         }
     }
+    
     public function getNama() {
         return $this->nama;
     }
+    
     public function getKualitas() {
         return $this->kualitas;
     }
+    
     public function getMultiplier() {
         return $this->multiplier;
     }
+    
     public function siram() {
-        if ($this->statusAir < 100 && !$this->sudahDipanen) {
+        if (!$this->sudahDipanen) {
             $this->statusAir = 100;
             $this->waktuSiramTerakhir = time();
             return true;
         }
         return false;
     }
+    
     public function updateStatusAir() {
         if ($this->sudahDipanen) {
             return;
         }
         $waktuSekarang = time();
         $detikBerlalu = $waktuSekarang - $this->waktuSiramTerakhir;
-        //tempat untuk mengurangi status air itu sendiri
-        $interval30Detik = floor($detikBerlalu / 30);
-        $penurunan = $interval30Detik * 5; //dia akan berkurang 5% setiap 30 detik
+        $penurunan = floor($detikBerlalu / 2) * 5;
         $this->statusAir = max(0, 100 - $penurunan);
     }
     
     public function bisaDipanen() {
-        $this->updateStatusAir();
         $waktuSekarang = time();
         $waktuTumbuh = $waktuSekarang - $this->waktuTanam;
-        return ($waktuTumbuh >= $this->waktuPanen && $this->statusAir > 10 && !$this->sudahDipanen);
+        $sudahWaktunya = ($waktuTumbuh >= $this->waktuPanen);
+        
+        $this->updateStatusAir();
+        
+        return ($sudahWaktunya && !$this->sudahDipanen);
     }
     
     public function panen() {
         if ($this->bisaDipanen()) {
             $this->sudahDipanen = true;
-            return $this->hargaJual * $this->multiplier;
+            $bonusAir = ($this->statusAir > 80) ? 1.2 : 
+                        (($this->statusAir > 50) ? 1.1 : 1.0);
+            return $this->hargaJual * $this->multiplier * $bonusAir;
         }
         return 0;
     }
@@ -90,15 +97,20 @@ abstract class Tanaman {
         $waktuTumbuh = $waktuSekarang - $this->waktuTanam;
         $persenTumbuh = min(100, ($waktuTumbuh / $this->waktuPanen) * 100);
         
+        $siapPanen = $this->bisaDipanen();
+        $waktuTersisa = max(0, $this->waktuPanen - $waktuTumbuh);
+        
         return [
             'nama' => $this->nama,
             'pertumbuhan' => round($persenTumbuh, 1),
             'air' => round($this->statusAir, 1),
-            'siapPanen' => $this->bisaDipanen(),
+            'siapPanen' => $siapPanen,
             'sudahDipanen' => $this->sudahDipanen,
             'kualitas' => $this->kualitas,
             'multiplier' => $this->multiplier,
-            'hargaJual' => $this->hargaJual * $this->multiplier
+            'hargaJual' => $this->hargaJual * $this->multiplier,
+            'waktuTersisa' => $waktuTersisa,
+            'hargaAktual' => $this->hargaJual * $this->multiplier * (($this->statusAir > 80) ? 1.2 : (($this->statusAir > 50) ? 1.1 : 1.0))
         ];
     }
     
@@ -106,7 +118,6 @@ abstract class Tanaman {
     abstract public function getEmoji();
 }
 
-//penrapan inheritance
 class TanamanSayur extends Tanaman {
     private $vitaminContent;
     private $emoji;
@@ -116,9 +127,11 @@ class TanamanSayur extends Tanaman {
         $this->vitaminContent = $vitaminContent;
         $this->emoji = $emoji;
     }
+    
     public function getJenis() {
         return "Sayuran";
     }
+    
     public function getEmoji() {
         return $this->emoji;
     }
@@ -133,9 +146,11 @@ class TanamanBuah extends Tanaman {
         $this->rasa = $rasa;
         $this->emoji = $emoji;
     }
+    
     public function getJenis() {
         return "Buah-buahan";
     }
+    
     public function getEmoji() {
         return $this->emoji;
     }
@@ -150,15 +165,16 @@ class TanamanPremium extends Tanaman {
         $this->emoji = $emoji;
         $this->levelRequired = $levelRequired;
     }
+    
     public function getJenis() {
         return "Premium";
     }
+    
     public function getEmoji() {
         return $this->emoji;
     }
 }
 
-//penerapan polymorphism
 class Lahan {
     private $tanaman = [];
     private $kapasitas;
@@ -166,6 +182,7 @@ class Lahan {
     public function __construct($kapasitas = 6) {
         $this->kapasitas = $kapasitas;
     }
+    
     public function tanam($tanaman) {
         if (count($this->tanaman) < $this->kapasitas) {
             $this->tanaman[] = $tanaman;
@@ -173,9 +190,11 @@ class Lahan {
         }
         return false;
     }
+    
     public function getTanaman() {
         return $this->tanaman;
     }
+    
     public function siramSemua() {
         $jumlahDisiram = 0;
         foreach ($this->tanaman as $tanaman) {
@@ -201,9 +220,11 @@ class Lahan {
     public function getKapasitas() {
         return $this->kapasitas;
     }
+    
     public function setKapasitas($kapasitas) {
         $this->kapasitas = $kapasitas;
     }
+    
     public function getKapasitasTersedia() {
         return $this->kapasitas - count($this->tanaman);
     }
@@ -223,21 +244,27 @@ class Petani {
         $this->exp = 0;
         $this->lahan = new Lahan(6);
     }
+    
     public function getNama() {
         return $this->nama;
     }
+    
     public function getUang() {
         return $this->uang;
     }
+    
     public function getLevel() {
         return $this->level;
     }
+    
     public function getExp() {
         return $this->exp;
     }
+    
     public function getLahan() {
         return $this->lahan;
     }
+    
     public function beliTanaman($jenis, $level) {
         $katalog = $this->getKatalogTanaman($level);
         if (!isset($katalog[$jenis])) {
@@ -245,22 +272,21 @@ class Petani {
         }
         
         $data = $katalog[$jenis];
-        //ini untuk mengecek apakah level sudah mencukupi
+        
         if ($level < $data['levelRequired']) {
             return null;
         }
-        //untuk mengecek uang cukup atau tidak
+        
         if ($this->uang < $data['hargaBeli']) {
             return null;
         }
-        //untuk mengecek berapa kapasitas lahan yang tersedia
+        
         if ($this->lahan->getKapasitasTersedia() <= 0) {
             return null;
         }
-        //jika semua pengecekan lolos, baru potong uang yang ada untuk membeli tanaman
+        
         $this->uang -= $data['hargaBeli'];
         
-        //buat tanaman dengan beberapa spesialis tipe yang ada
         switch($data['tipe']) {
             case 'sayur':
                 return new TanamanSayur($data['nama'], $data['waktuPanen'], $data['hargaBeli'], $data['hargaJual'], $data['vitamin'], $data['emoji']);
@@ -273,12 +299,25 @@ class Petani {
     }
     
     public function getKatalogTanaman($level) {
-        $katalog = [
+        $allKatalog = $this->getAllKatalogTanaman();
+        $filteredKatalog = [];
+        
+        foreach ($allKatalog as $key => $item) {
+            if ($level >= $item['levelRequired']) {
+                $filteredKatalog[$key] = $item;
+            }
+        }
+        
+        return $filteredKatalog;
+    }
+    
+    public function getAllKatalogTanaman() {
+        return [
             'wortel' => [
                 'nama' => 'Wortel',
                 'tipe' => 'sayur',
                 'hargaBeli' => 50,
-                'hargaJual' => 120,
+                'hargaJual' => 100,
                 'waktuPanen' => 30,
                 'vitamin' => 'Vitamin A',
                 'emoji' => '🥕',
@@ -288,7 +327,7 @@ class Petani {
                 'nama' => 'Tomat',
                 'tipe' => 'sayur',
                 'hargaBeli' => 100,
-                'hargaJual' => 250,
+                'hargaJual' => 200,
                 'waktuPanen' => 45,
                 'vitamin' => 'Vitamin C',
                 'emoji' => '🍅',
@@ -297,65 +336,85 @@ class Petani {
             'strawberry' => [
                 'nama' => 'Strawberry',
                 'tipe' => 'buah',
-                'hargaBeli' => 200,
-                'hargaJual' => 500,
+                'hargaBeli' => 150,
+                'hargaJual' => 300,
                 'waktuPanen' => 60,
                 'rasa' => 'Manis',
                 'emoji' => '🍓',
                 'levelRequired' => 1
-            ]
-        ];
-        if ($level >= 3) {
-            $katalog['jagung'] = [
+            ],
+            'jagung' => [
                 'nama' => 'Jagung',
                 'tipe' => 'sayur',
-                'hargaBeli' => 150,
+                'hargaBeli' => 200,
                 'hargaJual' => 400,
                 'waktuPanen' => 50,
                 'vitamin' => 'Vitamin B',
                 'emoji' => '🌽',
                 'levelRequired' => 3
-            ];
-        }
-        if ($level >= 5) {
-            $katalog['semangka'] = [
+            ],
+            'semangka' => [
                 'nama' => 'Semangka',
                 'tipe' => 'buah',
                 'hargaBeli' => 300,
-                'hargaJual' => 800,
+                'hargaJual' => 600,
                 'waktuPanen' => 80,
                 'rasa' => 'Segar',
                 'emoji' => '🍉',
                 'levelRequired' => 5
-            ];
-        }
-        if ($level >= 7) {
-            $katalog['nanas'] = [
+            ],
+            'nanas' => [
                 'nama' => 'Nanas',
                 'tipe' => 'premium',
                 'hargaBeli' => 500,
-                'hargaJual' => 1500,
+                'hargaJual' => 1000,
                 'waktuPanen' => 100,
                 'emoji' => '🍍',
                 'levelRequired' => 7
-            ];
-        }
-        if ($level >= 10) {
-            $katalog['durian'] = [
+            ],
+            'durian' => [
                 'nama' => 'Durian',
                 'tipe' => 'premium',
                 'hargaBeli' => 800,
-                'hargaJual' => 2500,
+                'hargaJual' => 1600,
                 'waktuPanen' => 120,
                 'emoji' => '🍈',
                 'levelRequired' => 10
-            ];
-        }
-        return $katalog;
+            ],
+            'alpukat' => [
+                'nama' => 'Alpukat',
+                'tipe' => 'premium',
+                'hargaBeli' => 1000,
+                'hargaJual' => 2000,
+                'waktuPanen' => 150,
+                'emoji' => '🥑',
+                'levelRequired' => 12
+            ],
+            'mangga' => [
+                'nama' => 'Mangga',
+                'tipe' => 'premium',
+                'hargaBeli' => 1500,
+                'hargaJual' => 3000,
+                'waktuPanen' => 200,
+                'emoji' => '🥭',
+                'levelRequired' => 15
+            ],
+            'pisang' => [
+                'nama' => 'Pisang',
+                'tipe' => 'premium',
+                'hargaBeli' => 2000,
+                'hargaJual' => 4000,
+                'waktuPanen' => 250,
+                'emoji' => '🍌',
+                'levelRequired' => 18
+            ]
+        ];
     }
+    
     public function tambahUang($jumlah) {
         $this->uang += $jumlah;
     }
+    
     public function tambahExp($jumlah) {
         $this->exp += $jumlah;
         $levelBaru = false;
@@ -377,27 +436,23 @@ class Petani {
         return false;
     }
 }
-//program utama untuk dapat berjalan
+
 session_start();
 
-//anti spam dengan token
 if (!isset($_SESSION['form_token'])) {
     $_SESSION['form_token'] = bin2hex(random_bytes(16));
 }
 
-//inisialisasi petani
 if (!isset($_SESSION['petani'])) {
     $_SESSION['petani'] = serialize(new Petani("Roland"));
 }
 
 $petani = unserialize($_SESSION['petani']);
 
-//handle POST request
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $token = $_POST['form_token'] ?? '';
     
-    //validasi token
     if ($token !== $_SESSION['form_token']) {
         header('Location: ' . $_SERVER['PHP_SELF']);
         exit;
@@ -410,17 +465,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if ($tanaman) {
                 if ($petani->getLahan()->tanam($tanaman)) {
-                    $_SESSION['pesan'] = "✅ Berhasil membeli dan menanam {$tanaman->getNama()}!";
+                    $_SESSION['pesan'] = "Berhasil membeli dan menanam {$tanaman->getNama()}!";
                     $_SESSION['tipepesan'] = "success";
                 } else {
-                    $_SESSION['pesan'] = "❌ Gagal menanam!";
+                    $_SESSION['pesan'] = "Gagal menanam!";
                     $_SESSION['tipepesan'] = "error";
                 }
             } else {
                 if ($petani->getLahan()->getKapasitasTersedia() <= 0) {
-                    $_SESSION['pesan'] = "❌ Lahan penuh! Panen atau upgrade lahan dulu.";
+                    $_SESSION['pesan'] = "Lahan penuh! Panen atau upgrade lahan dulu.";
                 } else {
-                    $_SESSION['pesan'] = "❌ Uang tidak cukup atau bibit belum unlock!";
+                    $_SESSION['pesan'] = "Uang tidak cukup atau bibit belum unlock!";
                 }
                 $_SESSION['tipepesan'] = "error";
             }
@@ -429,10 +484,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'siram':
             $jumlah = $petani->getLahan()->siramSemua();
             if ($jumlah > 0) {
-                $_SESSION['pesan'] = "💧 Berhasil menyiram $jumlah tanaman!";
+                $_SESSION['pesan'] = "Berhasil menyiram $jumlah tanaman!";
                 $_SESSION['tipepesan'] = "success";
             } else {
-                $_SESSION['pesan'] = "ℹ️ Semua tanaman sudah cukup air!";
+                $_SESSION['pesan'] = "Semua tanaman sudah cukup air!";
                 $_SESSION['tipepesan'] = "info";
             }
             break;
@@ -442,29 +497,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hasil = $petani->getLahan()->panenTanaman($index);
             
             if ($hasil > 0) {
-                $petani->tambahUang($hasil);
+                $hasilBulat = round($hasil);
+                $petani->tambahUang($hasilBulat);
                 $levelUp = $petani->tambahExp(20);
                 
                 if ($levelUp) {
-                    $_SESSION['pesan'] = "🎉 LEVEL UP! Level {$petani->getLevel()}! Dapat Rp" . number_format($hasil) . "!";
+                    $_SESSION['pesan'] = "LEVEL UP! Level {$petani->getLevel()}! Dapat Rp" . number_format($hasilBulat) . "!";
                     $_SESSION['tipepesan'] = "levelup";
                 } else {
-                    $_SESSION['pesan'] = "🌾 Panen berhasil! Dapat Rp" . number_format($hasil) . "!";
+                    $_SESSION['pesan'] = "Panen berhasil! Dapat Rp" . number_format($hasilBulat) . "!";
                     $_SESSION['tipepesan'] = "success";
                 }
             } else {
-                $_SESSION['pesan'] = "❌ Tanaman belum siap dipanen!";
+                $_SESSION['pesan'] = "Tanaman belum siap dipanen!";
                 $_SESSION['tipepesan'] = "error";
             }
             break;
             
         case 'upgrade':
             if ($petani->upgradeLahan()) {
-                $_SESSION['pesan'] = "⬆️ Berhasil upgrade lahan! Kapasitas +3 slot!";
+                $_SESSION['pesan'] = "Berhasil upgrade lahan! Kapasitas +3 slot!";
                 $_SESSION['tipepesan'] = "success";
             } else {
                 $harga = $petani->getLahan()->getKapasitas() * 200;
-                $_SESSION['pesan'] = "❌ Uang tidak cukup! Butuh Rp" . number_format($harga);
+                $_SESSION['pesan'] = "Uang tidak cukup! Butuh Rp" . number_format($harga);
                 $_SESSION['tipepesan'] = "error";
             }
             break;
@@ -490,6 +546,7 @@ unset($_SESSION['pesan']);
 unset($_SESSION['tipepesan']);
 
 $katalog = $petani->getKatalogTanaman($petani->getLevel());
+$allKatalog = $petani->getAllKatalogTanaman();
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -536,15 +593,6 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
             padding: 15px;
             margin-bottom: 20px;
             border-radius: 10px;
-        }
-        
-        .konsep-box h3 {
-            color: #e67e22;
-            margin-bottom: 10px;
-        }
-        
-        .konsep-box ul {
-            margin-left: 20px;
         }
         
         .pesan {
@@ -659,6 +707,7 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
             border: 3px solid #e2e8f0;
             text-align: center;
             transition: all 0.3s;
+            position: relative;
         }
         
         .shop-item:hover {
@@ -667,7 +716,17 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
         }
         
         .shop-item.locked {
-            opacity: 0.5;
+            opacity: 0.7;
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+        }
+        
+        .shop-item.locked::after {
+            content: "🔒";
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 1.2em;
+            opacity: 0.7;
         }
         
         .item-emoji {
@@ -693,6 +752,22 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
         
         .level-badge {
             background: #ffa500;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            display: inline-block;
+            margin-top: 5px;
+        }
+        
+        .lock-chain {
+            color: #718096;
+            font-size: 1.2em;
+            margin: 5px 0;
+        }
+        
+        .coming-soon {
+            background: #718096;
             color: white;
             padding: 3px 10px;
             border-radius: 15px;
@@ -805,6 +880,20 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
             justify-content: center;
         }
         
+        .water-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            margin: 5px 0;
+            overflow: hidden;
+        }
+        
+        .water-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4299e1, #3182ce);
+        }
+        
         button {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -830,6 +919,10 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
         .panen-btn:disabled {
             background: #cbd5e0;
             cursor: not-allowed;
+        }
+        
+        .panen-btn.water-low {
+            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
         }
         
         .upgrade-btn {
@@ -874,7 +967,6 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
             margin: 5px 0;
         }
         
-        /*animasi untuk tanaman tumbuh*/
         @keyframes grow {
             0% { transform: scale(0.8); }
             50% { transform: scale(1.1); }
@@ -884,12 +976,33 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
         .tanaman-card.new {
             animation: grow 0.5s ease;
         }
+        
+        .locked-info {
+            margin-top: 10px;
+            font-size: 0.85em;
+            color: #e53e3e;
+        }
+        
+        .water-indicator {
+            font-size: 0.85em;
+            color: #4299e1;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        
+        .water-indicator.low {
+            color: #ed8936;
+        }
+        
+        .water-indicator.very-low {
+            color: #e53e3e;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🌱 Grow a Garden</h1>
-        <p class="subtitle">Simulasi Bercocok Tamam Berdasarkan Game Grow a Garden</p>
+        <p class="subtitle">Simulasi Bercocok Tanam Berdasarkan Game Grow a Garden</p>
         
         <?php if ($pesan): ?>
             <div class="pesan <?= $tipepesan ?>"><?= htmlspecialchars($pesan) ?></div>
@@ -897,15 +1010,15 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
         
         <div class="stats">
             <div class="stat-card">
-                <div class="stat-label">👨‍🌾 Nama Petani</div>
+                <div class="stat-label">Nama Petani</div>
                 <div class="stat-value"><?= htmlspecialchars($petani->getNama()) ?></div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">💰 Uang</div>
+                <div class="stat-label">Uang</div>
                 <div class="stat-value">Rp<?= number_format($petani->getUang()) ?></div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">⭐ Level</div>
+                <div class="stat-label">Level</div>
                 <div class="stat-value"><?= $petani->getLevel() ?></div>
                 <div class="exp-bar">
                     <div class="exp-fill" style="width: <?= $petani->getExp() ?>%"></div>
@@ -915,28 +1028,40 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">🏡 Kapasitas Lahan</div>
+                <div class="stat-label">Kapasitas Lahan</div>
                 <div class="stat-value"><?= count($petani->getLahan()->getTanaman()) ?>/<?= $petani->getLahan()->getKapasitas() ?></div>
             </div>
         </div>
         
         <div class="shop">
-            <h2>🏪 Toko Bibit Tanaman</h2>
+            <h2>Toko Bibit Tanaman</h2>
+            <p style="color: #718096; margin-bottom: 15px; text-align: center;">
+                🔒 = Belum unlock | ✅ = Sudah unlock | ⛓️ = Rantai unlock level
+            </p>
             <div class="shop-items">
-                <?php foreach ($katalog as $key => $item): ?>
-                    <?php $unlocked = $petani->getLevel() >= $item['levelRequired']; ?>
+                <?php foreach ($allKatalog as $key => $item): ?>
+                    <?php 
+                    $unlocked = $petani->getLevel() >= $item['levelRequired'];
+                    $available = isset($katalog[$key]);
+                    ?>
                     <div class="shop-item <?= !$unlocked ? 'locked' : '' ?>">
                         <div class="item-emoji"><?= $item['emoji'] ?></div>
                         <div class="item-name"><?= $item['nama'] ?></div>
-                        <p class="price">💵 Beli: Rp<?= number_format($item['hargaBeli']) ?></p>
-                        <p class="price sell">💰 Jual: Rp<?= number_format($item['hargaJual']) ?></p>
-                        <p style="font-size: 0.9em; color: #718096;">⏱️ <?= $item['waktuPanen'] ?> detik</p>
+                        <p class="price">Beli: Rp<?= number_format($item['hargaBeli']) ?></p>
+                        <p class="price sell">Jual: Rp<?= number_format($item['hargaJual']) ?></p>
+                        <p style="font-size: 0.9em; color: #718096;">⌛ <?= $item['waktuPanen'] ?> detik</p>
                         
-                        <?php if ($item['levelRequired'] > 1): ?>
-                            <span class="level-badge">Level <?= $item['levelRequired'] ?></span>
-                        <?php endif; ?>
-                        
-                        <?php if ($unlocked): ?>
+                        <?php if (!$unlocked): ?>
+                            <div class="lock-chain">⛓️ Level <?= $item['levelRequired'] ?></div>
+                            <span class="coming-soon">LOCKED</span>
+                            <div class="locked-info">
+                                Butuh Level <?= $item['levelRequired'] ?>
+                            </div>
+                        <?php elseif ($available): ?>
+                            <?php if ($item['levelRequired'] > 1): ?>
+                                <span class="level-badge">Level <?= $item['levelRequired'] ?></span>
+                            <?php endif; ?>
+                            
                             <form method="POST" style="margin-top: 10px;">
                                 <input type="hidden" name="action" value="beli">
                                 <input type="hidden" name="jenis" value="<?= $key ?>">
@@ -944,7 +1069,10 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
                                 <button type="submit">Beli & Tanam</button>
                             </form>
                         <?php else: ?>
-                            <p style="color: #e53e3e; margin-top: 10px; font-size: 0.9em;">🔒 Unlock Level <?= $item['levelRequired'] ?></p>
+                            <span class="level-badge">✅ Unlocked</span>
+                            <p style="color: #38a169; margin-top: 10px; font-size: 0.9em;">
+                                Sudah bisa dibeli!
+                            </p>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
@@ -953,12 +1081,12 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
         
         <div class="lahan">
             <div class="lahan-header">
-                <h2>🌾 Lahan Pertanian</h2>
+                <h2>Lahan Pertanian</h2>
                 <form method="POST" style="display: inline;">
                     <input type="hidden" name="action" value="upgrade">
                     <input type="hidden" name="form_token" value="<?= $_SESSION['form_token'] ?>">
                     <button type="submit" class="upgrade-btn">
-                        ⬆️ Upgrade Lahan (+3 slot) - Rp<?= number_format($petani->getLahan()->getKapasitas() * 200) ?>
+                        Upgrade Lahan (+3 slot) - Rp<?= number_format($petani->getLahan()->getKapasitas() * 200) ?>
                     </button>
                 </form>
             </div>
@@ -967,7 +1095,7 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
             
             <?php if (empty($tanaman_list)): ?>
                 <div class="empty-lahan">
-                    <div class="empty-lahan-emoji">🌾</div>
+                    <div class="empty-lahan-emoji"></div>
                     <p>Lahan masih kosong</p>
                     <p style="font-size: 0.9em; margin-top: 10px;">Beli bibit dari toko untuk mulai bertani!</p>
                 </div>
@@ -978,11 +1106,15 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
                         $status = $tanaman->getStatus();
                         $kualitasClass = $status['kualitas'] == 'golden' ? 'golden' : ($status['kualitas'] == 'rainbow' ? 'rainbow' : '');
                         $cardClass = $status['siapPanen'] ? 'siap' : '';
+                        
+                        $waterClass = '';
+                        if ($status['air'] < 30) $waterClass = 'very-low';
+                        elseif ($status['air'] < 60) $waterClass = 'low';
                         ?>
                         <div class="tanaman-card <?= $cardClass ?> <?= $kualitasClass ?>">
                             <?php if ($status['kualitas'] != 'normal'): ?>
                                 <div class="kualitas-badge <?= $status['kualitas'] ?>">
-                                    <?= $status['kualitas'] == 'golden' ? '⭐ GOLDEN x5' : '🌈 RAINBOW x10' ?>
+                                    <?= $status['kualitas'] == 'golden' ? 'GOLDEN x5' : 'RAINBOW x10' ?>
                                 </div>
                             <?php endif; ?>
                             
@@ -997,22 +1129,43 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
                                     </div>
                                 </div>
                                 
-                                <p class="status-text">💧 Air: <?= round($status['air']) ?>%</p>
-                                <p class="status-text">💰 Nilai: Rp<?= number_format($status['hargaJual']) ?></p>
+                                <div class="water-bar">
+                                    <div class="water-fill" style="width: <?= $status['air'] ?>%"></div>
+                                </div>
+                                
+                                <div class="water-indicator <?= $waterClass ?>">
+                                    Air: <?= round($status['air']) ?>%
+                                    <?php if ($status['air'] < 30): ?> <?php endif; ?>
+                                </div>
+                                
+                                <p class="status-text">Rp<?= number_format($status['hargaAktual']) ?></p>
                                 
                                 <?php if ($status['siapPanen']): ?>
-                                    <p style="color: #48bb78; font-weight: bold; margin: 10px 0;">✅ SIAP PANEN!</p>
+                                    <p style="color: #48bb78; font-weight: bold; margin: 10px 0;">
+                                        SIAP PANEN!
+                                    </p>
                                     <form method="POST">
                                         <input type="hidden" name="action" value="panen">
                                         <input type="hidden" name="index" value="<?= $index ?>">
                                         <input type="hidden" name="form_token" value="<?= $_SESSION['form_token'] ?>">
-                                        <button type="submit" class="panen-btn">🌾 Panen Sekarang</button>
+                                        <button type="submit" class="panen-btn <?= $status['air'] < 60 ? 'water-low' : '' ?>">
+                                            <?php if ($status['air'] < 30): ?>
+                                                Panen (Air Sangat Rendah)
+                                            <?php elseif ($status['air'] < 60): ?>
+                                                Panen (Air Rendah)
+                                            <?php else: ?>
+                                            Panen Sekarang
+                                            <?php endif; ?>
+                                        </button>
                                     </form>
                                 <?php else: ?>
-                                    <button class="panen-btn" disabled>⏳ Sedang Tumbuh</button>
+                                    <p style="color: #718096; margin: 10px 0;">
+                                        <?= round($status['waktuTersisa']) ?> detik lagi
+                                    </p>
+                                    <button class="panen-btn" disabled>Sedang Tumbuh</button>
                                 <?php endif; ?>
                             <?php else: ?>
-                                <p style="color: #a0aec0; margin-top: 15px;">Sudah dipanen</p>
+                                <p style="color: #a0aec0; margin-top: 15px;">✅ Sudah dipanen</p>
                             <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
@@ -1022,48 +1175,53 @@ $katalog = $petani->getKatalogTanaman($petani->getLevel());
                     <form method="POST" style="display: inline;">
                         <input type="hidden" name="action" value="siram">
                         <input type="hidden" name="form_token" value="<?= $_SESSION['form_token'] ?>">
-                        <button type="submit">💧 Siram Semua Tanaman</button>
+                        <button type="submit">Siram Semua Tanaman</button>
                     </form>
                     
                     <form method="POST" style="display: inline;">
                         <input type="hidden" name="action" value="reset">
                         <input type="hidden" name="form_token" value="<?= $_SESSION['form_token'] ?>">
-                        <button type="submit" onclick="return confirm('Yakin ingin reset game? Semua progress akan hilang!')">🔄 Reset Game</button>
+                        <button type="submit" onclick="return confirm('Yakin ingin reset game? Semua progress akan hilang!')">Reset Game</button>
                     </form>
                 </div>
             <?php endif; ?>
         </div>
         
         <div class="info-footer">
-            <strong>📖 Panduan Bermain:</strong>
-            <p>🛒 Beli bibit dari toko sesuai level kamu</p>
-            <p>🌱 Tanaman akan tumbuh otomatis berdasarkan waktu</p>
-            <p>💧 Jangan lupa siram agar tanaman tidak layu</p>
-            <p>🌾 Panen saat progress 100% untuk dapat uang dan EXP</p>
-            <p>⭐ Ada chance dapat tanaman GOLDEN (x5) atau RAINBOW (x10)!</p>
-            <p>📈 Naik level untuk membuka bibit premium</p>
-            <p>⬆️ Upgrade lahan untuk menambah kapasitas tanam</p>
+            <strong>Panduan Bermain:</strong>
+            <p>Bibit dengan 🔒 belum bisa dibeli (butuh level lebih tinggi)</p>
+            <p>Tanaman akan tumbuh otomatis berdasarkan waktu</p>
+            <p>Siram tanaman agar hasil panen maksimal (air >80% = bonus 20%, >50% = bonus 10%)</p>
+            <p>Tanaman bisa dipanen meski air rendah, tapi hasil berkurang</p>
+            <p>Ada chance 5% dapat RAINBOW (x10) dan 15% dapat GOLDEN (x5)!</p>
+            <p>Naik level untuk membuka bibit premium (lihat rantai ⛓️ di toko)</p>
+            <p>Upgrade lahan untuk menambah kapasitas tanam</p>
         </div>
     </div>
     
     <script>
-        //auto refresh hanya untuk update progress, tidak scroll ke atas
-        let lastScrollPos = window.scrollY;
-        
+        // Auto refresh setiap 5 detik untuk update progress
         setTimeout(function() {
-            lastScrollPos = window.scrollY;
+            sessionStorage.setItem('scrollPos', window.scrollY);
             location.reload();
         }, 5000);
         
-        //restore scroll position after reload
+        // Restore scroll position setelah reload
         window.addEventListener('load', function() {
             if (sessionStorage.getItem('scrollPos')) {
                 window.scrollTo(0, parseInt(sessionStorage.getItem('scrollPos')));
             }
         });
         
-        window.addEventListener('beforeunload', function() {
-            sessionStorage.setItem('scrollPos', window.scrollY);
+        // Animasi untuk tanaman baru
+        document.addEventListener('DOMContentLoaded', function() {
+            const tanamanCards = document.querySelectorAll('.tanaman-card');
+            tanamanCards.forEach(card => {
+                card.classList.add('new');
+                setTimeout(() => {
+                    card.classList.remove('new');
+                }, 1000);
+            });
         });
     </script>
 </body>
